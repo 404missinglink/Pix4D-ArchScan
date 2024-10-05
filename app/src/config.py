@@ -26,5 +26,9 @@ TRIM_END_FRAMES = 30
 # Base directory to save frames and summaries
 BASE_FRAMES_DIR = "frames"
 
+# Hardcoded destination folder
+UPLOAD_VIDEOS_FOLDER = os.path.expanduser("~/upload_videos")
+
+
 # Ensure the base frames directory exists
 os.makedirs(BASE_FRAMES_DIR, exist_ok=True)
