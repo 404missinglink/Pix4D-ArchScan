@@ -15,13 +15,13 @@ def create_gradio_interface():
         # Improved header markdown with larger font and an appealing subheading
         gr.Markdown("""
         <h1 style='font-size: 2.5em; text-align: center;'>🚁 Drone Footage Surveyor</h1>
-        <p style='font-size: 1.2em; text-align: center;'>Upload drone video footage, specify the number of frames to extract, and Pixtral will provide live summarizations of the content in a larger chat interface. The frames and their summaries will be saved automatically.</p>
+        <p style='font-size: 1.2em; text-align: center;'>Enter a YouTube video link, specify the number of frames to extract, and Pixtral will provide live summarizations of the content in a larger chat interface. The frames and their summaries will be saved automatically.</p>
         """, elem_id="header")
 
         # Adjusted layout to make the chatbot larger and other elements more visually balanced
         with gr.Row(equal_height=False):
-            with gr.Column(scale=1, min_width=300):  # Keeping the video upload section compact
-                video_input = gr.Video(label="📥 Upload Drone Footage")
+            with gr.Column(scale=1, min_width=300):  # Keeping the input section compact
+                video_input = gr.Textbox(label="📥 YouTube Video Link", placeholder="Enter YouTube video URL here")
                 max_frames_input = gr.Number(label="🔢 Max Frames to Extract", value=10, precision=0, step=1, interactive=True)
                 include_images_input = gr.Checkbox(label="🖼️ Include Frame Images in Summaries", value=False)
                 submit_btn = gr.Button("▶️ Process Video", elem_classes="submit-btn")
@@ -36,11 +36,10 @@ def create_gradio_interface():
 
         # Define the generator function for streaming summaries to the chatbot
         submit_btn.click(
-            fn=video_processor.process_video,
+            fn=video_processor.process_video,  # You need to modify this function to handle the YouTube link
             inputs=[video_input, max_frames_input, include_images_input, chat_history, frame_summaries],
             outputs=[chatbot, frame_summaries],
             show_progress=True
         )
 
     return iface
-
