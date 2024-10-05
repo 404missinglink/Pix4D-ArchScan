@@ -287,16 +287,29 @@ class VideoProcessor:
 
             # Define the prompt for the text model
             prompt = (
-                "Based on the following frame summaries from a structural and construction survey, provide a comprehensive overall summary highlighting the key issues identified. "
-                "Additionally, suggest potential solutions or actions to address these issues. Ensure the response is clear, concise, and actionable."
+                "From the following structural and construction survey summaries, provide a brief and actionable summary of key issues and recommended actions. "
+                "Avoid unnecessary details and focus on practical recommendations. Follow this example structure:"
+                "\n\n"
+                "Example Structure:"
+                "\n\n"
+                "Key Issue Category (e.g., Foundation & Walls):"
+                "\n- Issue: Brief description of the problem."
+                "\n- Action: Clear, actionable recommendation to address the issue."
+                "\n\n"
+                "Key Issue Category (e.g., Roof):"
+                "\n- Issue: Brief description of the problem."
+                "\n- Action: Clear, actionable recommendation to address the issue."
+                "\n\n"
+                "Use this structure for all identified issues. Be concise and focus on critical actions."
                 f"{aggregated_summaries}"
             )
 
             # Define messages for the chat completion
             messages = [
-                {"role": "system", "content": "You are a helpful assistant specialized in structural and construction surveying. You only give suggestions on infromation you know and you do not overshare redundant or repeated information."},
+                {"role": "system", "content": "You are a helpful assistant specialized in structural and construction surveying. You provide concise, practical recommendations without redundant or repeated information."},
                 {"role": "user", "content": prompt}
             ]
+
 
             # Implement consistent rate limiting: Ensure at least RATE_LIMIT_SECONDS between API requests
             with self.rate_limit_lock:
