@@ -74,25 +74,28 @@ def encode_image(image):
         logger.debug(traceback.format_exc())
         return None
 
-def process_video(video_path, max_frames=10, include_images=False, history=""):
+def process_video(video_path, max_frames=10, include_images=False, history=[]):
     """
-    Processes the uploaded video and updates the Markdown summary history in real-time.
+    Processes the uploaded video and updates the Chatbot history in real-time.
     
     Parameters:
         video_path (str): Path to the uploaded video.
         max_frames (int): Maximum number of frames to extract.
         include_images (bool): Whether to include images in the summaries.
-        history (str): Accumulated Markdown summaries.
+        history (list): Accumulated chat history as a list of (user, bot) tuples.
     
     Yields:
-        Tuple containing:
-            - Updated Markdown summaries.
-            - Updated history state.
+        list: Updated chat history and updated state.
     """
     global last_request_time  # Access the global variable for rate limiting
     logger.info("Processing uploaded video.")
     frames = []  # Initialize frames to ensure it's always defined
+
     try:
+        # Inform the user that processing has started
+        history.append(("System", "📹 Processing your video. Please wait..."))
+        yield [history, history]  # Yield both chatbot and state
+
         with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp:
             with open(video_path, "rb") as f:
                 tmp.write(f.read())
@@ -101,9 +104,8 @@ def process_video(video_path, max_frames=10, include_images=False, history=""):
     except Exception as e:
         logger.error(f"Failed to save temporary video file: {str(e)}")
         logger.debug(traceback.format_exc())
-        error_md = "## Error\n\nFailed to save the uploaded video.\n"
-        history += error_md
-        yield history, history
+        history.append(("System", "❌ Failed to save the uploaded video."))
+        yield [history, history]
         return
 
     try:
@@ -115,11 +117,11 @@ def process_video(video_path, max_frames=10, include_images=False, history=""):
             trim_start=TRIM_START_FRAMES,
             trim_end=TRIM_END_FRAMES
         )
+        logger.info(f"Extracted {len(frames)} frames from the video.")
     except Exception as e:
         logger.error(f"Failed to extract frames: {str(e)}")
-        error_md = "## Error\n\nFailed to extract frames from the video.\n"
-        history += error_md
-        yield history, history
+        history.append(("System", "❌ Failed to extract frames from the video."))
+        yield [history, history]
     finally:
         try:
             os.remove(tmp_path)
@@ -128,16 +130,16 @@ def process_video(video_path, max_frames=10, include_images=False, history=""):
             logger.warning(f"Could not remove temporary video file: {str(e)}")
 
     if not frames:
-        no_frames_md = "## No Frames Extracted\n\nNo frames were extracted from the video.\n"
-        history += no_frames_md
-        yield history, history
+        history.append(("System", "⚠️ No frames were extracted from the video."))
+        yield [history, history]
+        return
 
     # Initialize history if it's empty
     if not history:
-        history = "# Video Summary\n\nProcessing summaries...\n\n"
+        history = [("System", "📹 Video Summary initiated. Processing summaries...")]
 
     for idx, frame in enumerate(frames):
-        logger.info(f"Processing frame {idx}")
+        logger.info(f"Processing frame {idx+1}/{len(frames)}")
         try:
             img = Image.fromarray(frame)
             base64_image = encode_image(img)  # Always encode the image
@@ -159,12 +161,12 @@ def process_video(video_path, max_frames=10, include_images=False, history=""):
                 }
             ]
 
-            # Implement rate limiting: Ensure at least 1 second between API requests
+            # Implement rate limiting: Ensure at least 1.4 seconds between API requests
             with rate_limit_lock:
                 current_time = time.time()
                 elapsed_time = current_time - last_request_time
-                if elapsed_time < 1:
-                    sleep_time = 1.4 - elapsed_time  # Corrected to 1 second
+                if elapsed_time < 1.4:
+                    sleep_time = 1.4 - elapsed_time
                     logger.info(f"Rate limiting in effect. Sleeping for {sleep_time:.2f} seconds.")
                     time.sleep(sleep_time)
                 # Update the last_request_time to the current time after sleeping
@@ -187,7 +189,7 @@ def process_video(video_path, max_frames=10, include_images=False, history=""):
 
             # Log latency and image details
             height, width, channels = frame.shape
-            logger.info(f"Frame {idx}: Width={width}px, Height={height}px, Channels={channels}, Latency={latency:.2f}s")
+            logger.info(f"Frame {idx+1}: Width={width}px, Height={height}px, Channels={channels}, Latency={latency:.2f}s")
 
             summary = chat_response.choices[0].message.content
 
@@ -198,63 +200,60 @@ def process_video(video_path, max_frames=10, include_images=False, history=""):
                 description = summary_json.get("description", "N/A")
 
                 summary_text = f"**Description:** {description}"
-                logger.info(f"Frame {idx} summarized successfully.")
+                logger.info(f"Frame {idx+1} summarized successfully.")
             except json.JSONDecodeError:
                 # If not valid JSON, include as plain text with error
-                summary_text = "Invalid JSON format received."
-                frame_summary_md = f"### Frame {idx}\n\n**Error**: Received summary is not valid JSON.\n\n**Raw Response:**\n\n{summary}\n\n"
-                history += frame_summary_md
-                logger.warning(f"Frame {idx} summary is not valid JSON.")
-                yield history, history
+                summary_text = "❌ Invalid JSON format received."
+                raw_response = summary
+                logger.warning(f"Frame {idx+1} summary is not valid JSON.")
+                history.append(("System", f"❌ Frame {idx+1}: Received summary is not valid JSON.\n\n**Raw Response:**\n```json\n{raw_response}\n```"))
+                yield [history, history]
                 continue
 
-            # Format the summary in Markdown
+            # Format the summary, including image if required
             if include_images and base64_image:
-                frame_summary_md = f"### Frame {idx}\n\n![Frame {idx}](data:image/jpeg;base64,{base64_image})\n\n**Summary:**\n\n{summary_text}\n\n"
+                bot_message = f"### Frame {idx+1}\n\n![Frame {idx+1}](data:image/jpeg;base64,{base64_image})\n\n**Summary:**\n\n{summary_text}"
             else:
-                frame_summary_md = f"### Frame {idx}\n\n**Summary:**\n\n{summary_text}\n\n"
+                bot_message = f"### Frame {idx+1}\n\n**Summary:**\n\n{summary_text}"
 
             # Append the new summary to the history
-            history += frame_summary_md
+            history.append(("System", bot_message))
 
-            # Yield the updated history
-            yield history, history
+            # Yield the updated history and state
+            yield [history, history]
 
         except Exception as e:
-            logger.error(f"Error processing frame {idx}: {str(e)}")
+            logger.error(f"Error processing frame {idx+1}: {str(e)}")
             logger.debug(traceback.format_exc())
-            frame_error_md = f"### Frame {idx}\n\n**Error**: {str(e)}\n\n"
-            history += frame_error_md
-            yield history, history
+            frame_error_md = f"❌ Frame {idx+1}: {str(e)}"
+            history.append(("System", frame_error_md))
+            yield [history, history]
 
-    completion_md = "\n\n# Processing Completed\n\nAll frame summaries have been generated."
-    history += completion_md
-    yield history, history
+    completion_md = "✅ **Processing Completed**\n\nAll frame summaries have been generated."
+    history.append(("System", completion_md))
+    yield [history, history]
 
 # Define Gradio interface
 with gr.Blocks() as iface:
-    gr.Markdown("# Drone Footage Summarizer\nUpload drone video footage, specify the number of frames to extract, and Pixtral will provide live summarizations of the content in Markdown format.")
+    gr.Markdown("# 🚁 Drone Footage Summarizer\nUpload drone video footage, specify the number of frames to extract, and Pixtral will provide live summarizations of the content in a chat interface.")
 
     with gr.Row():
-        with gr.Column():
-            video_input = gr.Video(label="Upload Drone Footage")
-            max_frames_input = gr.Number(label="Max Frames to Extract", value=10, precision=0, step=1)
-            # Removed frame_interval_input as it's now handled by frame_extractor.py
-            # include_images_input remains to control image display
-            include_images_input = gr.Checkbox(label="Include Frame Images in Summaries", value=False)
-            submit_btn = gr.Button("Process Video")
-        with gr.Column():
-            # Simple Markdown component for summaries
-            summary_output = gr.Markdown(label="Live Summarization", value="")
+        with gr.Column(scale=1):
+            video_input = gr.Video(label="📥 Upload Drone Footage")
+            max_frames_input = gr.Number(label="🔢 Max Frames to Extract", value=10, precision=0, step=1, interactive=True)
+            include_images_input = gr.Checkbox(label="🖼️ Include Frame Images in Summaries", value=False)
+            submit_btn = gr.Button("▶️ Process Video")
+        with gr.Column(scale=2):
+            chatbot = gr.Chatbot(label="💬 Live Summarization")
 
-    # Hidden state to store history
-    summary_history = gr.State(value="")
+    # Hidden state to store history as a list of tuples
+    summary_history = gr.State(value=[])
 
-    # Define the generator function for streaming summaries
+    # Define the generator function for streaming summaries to the chatbot
     submit_btn.click(
         fn=process_video,
         inputs=[video_input, max_frames_input, include_images_input, summary_history],
-        outputs=[summary_output, summary_history],
+        outputs=[chatbot, summary_history],
         show_progress=True
     )
 
