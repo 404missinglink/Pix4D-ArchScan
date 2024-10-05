@@ -2,6 +2,10 @@
 
 A video to text summarisation tool using Pixtral
 
+## Prerequisites
+
+- Video's must be in `MP4` format
+
 ### Frame Extractor
 
 ```python
