@@ -5,10 +5,12 @@ from PIL import Image
 import tempfile
 import base64
 from dotenv import load_dotenv
-import cv2
 import logging
 import traceback
 import json
+
+# Import the frame extraction function from the frame_extractor module
+from frame_extractor import extract_frames_opencv
 
 # Setup logging
 logging.basicConfig(
@@ -37,45 +39,6 @@ vision_model = "pixtral-12b-2409"
 # Initialize the Mistral client
 client = Mistral(api_key=api_key)
 
-def extract_frames_opencv(video_path, max_frames=10):
-    """
-    Extracts frames from the video at regular intervals using OpenCV.
-    """
-    logger.info(f"Starting frame extraction from {video_path} with max_frames={max_frames}")
-    frames = []
-    try:
-        cap = cv2.VideoCapture(video_path)
-        if not cap.isOpened():
-            logger.error(f"Failed to open video file: {video_path}")
-            raise ValueError(f"Failed to open video file: {video_path}")
-
-        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        fps = cap.get(cv2.CAP_PROP_FPS)
-        duration = total_frames / fps if fps else 0
-
-        logger.info(f"Video FPS: {fps}, Total Frames: {total_frames}, Duration: {duration}s")
-
-        frame_interval = max(total_frames // max_frames, 1)
-
-        frame_indices = [i * frame_interval for i in range(max_frames)]
-        for idx in frame_indices:
-            cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
-            ret, frame = cap.read()
-            if ret:
-                # Convert BGR to RGB
-                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                frames.append(frame_rgb)
-                logger.debug(f"Extracted frame {idx}")
-            else:
-                logger.warning(f"Failed to read frame at index {idx}")
-        cap.release()
-        logger.info(f"Extracted {len(frames)} frames.")
-    except Exception as e:
-        logger.error(f"Error during frame extraction: {str(e)}")
-        logger.debug(traceback.format_exc())
-        raise e
-    return frames
-
 def encode_image(image):
     """
     Encode the image to base64.
@@ -93,9 +56,17 @@ def encode_image(image):
         logger.debug(traceback.format_exc())
         return None
 
-def process_video(video_path):
+def process_video(video_path, max_frames=10, frame_interval=None):
     """
     Processes the uploaded video and returns a JSON summary.
+
+    Parameters:
+        video_path (str): Path to the uploaded video.
+        max_frames (int): Maximum number of frames to extract.
+        frame_interval (int, optional): Interval between frames to extract.
+
+    Returns:
+        dict: JSON summary of the video.
     """
     logger.info("Processing uploaded video.")
     try:
@@ -110,7 +81,7 @@ def process_video(video_path):
         return {"error": "Failed to save the uploaded video."}
 
     try:
-        frames = extract_frames_opencv(tmp_path, max_frames=10)
+        frames = extract_frames_opencv(tmp_path, max_frames=max_frames, frame_interval=frame_interval)
     except Exception as e:
         logger.error(f"Failed to extract frames: {str(e)}")
         return {"error": "Failed to extract frames from the video."}
@@ -183,10 +154,14 @@ def process_video(video_path):
 # Define Gradio interface
 iface = gr.Interface(
     fn=process_video,
-    inputs=gr.Video(label="Upload Drone Footage"),
+    inputs=[
+        gr.Video(label="Upload Drone Footage"),
+        gr.Number(label="Max Frames to Extract", value=10, precision=0, step=1),
+        gr.Number(label="Frame Interval (Optional)", value=None, precision=0, step=1)
+    ],
     outputs=gr.JSON(label="Live Summarization"),
     title="Drone Footage Summarizer",
-    description="Upload drone video footage, and Pixtral will provide live summarizations of the content in JSON format."
+    description="Upload drone video footage, specify the number of frames to extract and the interval, and Pixtral will provide live summarizations of the content in JSON format."
 )
 
 if __name__ == "__main__":
