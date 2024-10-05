@@ -83,7 +83,8 @@ def encode_image(image):
 
 def process_video(video_path, max_frames=10, include_images=False, chat_history=None, frame_summaries=None):
     """
-    Processes the uploaded video, updates the Chatbot history, and saves frames with summaries to disk.
+    Processes the uploaded video, updates the Chatbot history, saves frames with summaries to disk,
+    and generates an overall summary using the larger text model.
 
     Parameters:
         video_path (str): Path to the uploaded video.
@@ -272,7 +273,7 @@ def process_video(video_path, max_frames=10, include_images=False, chat_history=
                     "Construction Progress",
                     "Temporary Supports & Site Safety",
                     "Building Services",
-                    "Project Type"  # New key added for project type
+                    "Type of Project"  # Standardized key
                 ]
                 for key in required_keys:
                     if key not in summary_json:
@@ -327,26 +328,86 @@ def process_video(video_path, max_frames=10, include_images=False, chat_history=
             chat_history.append(("System", frame_error_md))
             yield [chat_history, frame_summaries]
 
-    # After processing all frames, save the JSON file with frame paths and summaries
+    # After processing all frames, generate an overall summary and save it
     try:
-        json_data = {
+        # Inform the user that an overall summary is being generated
+        chat_history.append(("System", "📝 Generating an overall summary based on the analysis of all frames..."))
+        yield [chat_history, frame_summaries]
+
+        # Create a context by joining all frame summaries
+        aggregated_summaries = "\n\n".join([frame['summary'] for frame in frames_data if 'summary' in frame])
+
+        # Define the prompt for the text model
+        prompt = (
+            "Based on the following frame summaries from a structural and construction survey, provide a comprehensive overall summary highlighting the key issues identified. "
+            "Additionally, suggest potential solutions or actions to address these issues. Ensure the response is clear, concise, and actionable.\n\n"
+            f"{aggregated_summaries}"
+        )
+
+        # Define messages for the chat completion
+        messages = [
+            {"role": "system", "content": "You are a helpful assistant specialized in structural and construction surveying."},
+            {"role": "user", "content": prompt}
+        ]
+
+        # Implement consistent rate limiting: Ensure at least 1 second between API requests
+        with rate_limit_lock:
+            current_time = time.time()
+            elapsed_time = current_time - last_request_time
+            if elapsed_time < 1.0:
+                sleep_time = 1.0 - elapsed_time
+                logger.info(f"Sleeping for {sleep_time:.2f} seconds to maintain rate limiting.")
+                time.sleep(sleep_time)
+            # Update the last_request_time to the current time before making the call
+            last_request_time = time.time()
+
+        # Measure latency
+        start_time = time.time()
+
+        # Get the response from the text model
+        overall_response = client.chat.complete(
+            model=text_model,
+            messages=messages,
+            temperature=0  # Set temperature to zero for determinism
+        )
+
+        end_time = time.time()
+        latency = end_time - start_time  # in seconds
+
+        logger.info(f"Overall Summary Latency: {latency:.2f}s")
+
+        overall_summary = overall_response.choices[0].message.content.strip()
+
+        # Format the overall summary for display
+        overall_summary_md = f"### Overall Summary and Potential Solutions\n\n{overall_summary}"
+
+        # Append the overall summary to the chat_history
+        chat_history.append(("System", overall_summary_md))
+
+        # Append the overall summary to frames_data for JSON
+        frames_data_with_overall = {
             "run_id": run_id,
-            "frames": frames_data
+            "frames": frames_data,
+            "overall_summary": overall_summary
         }
+
+        # Save the frames_summary.json with overall summary
         json_path = os.path.join(run_dir, "frames_summary.json")
         with open(json_path, "w") as json_file:
-            json.dump(json_data, json_file, indent=2)
-        logger.info(f"Saved frames summary JSON at {json_path}")
-    except Exception as e:
-        logger.error(f"Error saving frames summary JSON: {str(e)}")
-        logger.debug(traceback.format_exc())
-        chat_history.append(("System", "❌ An error occurred while saving frames summaries to disk."))
-        yield [chat_history, frame_summaries]
-        return
+            json.dump(frames_data_with_overall, json_file, indent=2)
+        logger.info(f"Saved frames summary JSON with overall summary at {json_path}")
 
-    # Finally, inform the user that processing is completed without an additional message
-    # (As per previous instructions)
-    yield [chat_history, frame_summaries]
+        # Yield the updated chat_history and frame_summaries
+        yield [chat_history, frame_summaries]
+
+    except Exception as e:
+        logger.error(f"Error generating overall summary: {str(e)}")
+        logger.debug(traceback.format_exc())
+        chat_history.append(("System", "❌ An error occurred while generating the overall summary and potential solutions."))
+        yield [chat_history, frame_summaries]
+
+    # Remove the "Processing Completed" message as per previous instructions
+    # yield [chat_history, frame_summaries]
 
 def handle_user_question(user_input, chat_history, frame_summaries):
     """
