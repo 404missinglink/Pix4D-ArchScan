@@ -288,13 +288,13 @@ class VideoProcessor:
             # Define the prompt for the text model
             prompt = (
                 "Based on the following frame summaries from a structural and construction survey, provide a comprehensive overall summary highlighting the key issues identified. "
-                "Additionally, suggest potential solutions or actions to address these issues. Ensure the response is clear, concise, and actionable.\n\n"
+                "Additionally, suggest potential solutions or actions to address these issues. Ensure the response is clear, concise, and actionable."
                 f"{aggregated_summaries}"
             )
 
             # Define messages for the chat completion
             messages = [
-                {"role": "system", "content": "You are a helpful assistant specialized in structural and construction surveying."},
+                {"role": "system", "content": "You are a helpful assistant specialized in structural and construction surveying. You only give suggestions on infromation you know and you do not overshare redundant or repeated information."},
                 {"role": "user", "content": prompt}
             ]
 
