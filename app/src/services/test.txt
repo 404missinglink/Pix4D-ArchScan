@@ -1,0 +1,55 @@
+curl -X POST http://127.0.0.1:5000/describe_image \
+-H "Content-Type: application/json" \
+-d '{
+  "image_url": "https://cdn.datasetninja.com/previews/q/ext:jpeg/resize:fill:400:0:0/q:70/plain/supervisely-supervisely-assets-public/images/original/H/u/8V/hVmVbaNdRwFAfk4fSQcG1CIOlcffZ1yRvU9wTNOJ1n5lo9DNpUEevulAqMb1LC3f8VVyMSfSsps7kKAX1rFUZsb8wZMzQmlohS25bKYuavuQ5mTsNynWJWfkuDmT.jpg",
+  "prompt": "'''Provide a detailed analysis of this frame based on the following key areas relevant to structural and construction surveying. The response should be in JSON format with each key area as a separate field. Ensure the information is concise, direct, and easily processed by a larger language model. Additionally, identify and describe the type of project (e.g., building, bridge, road) present in the frame to provide more context.
+
+                                            The JSON response should follow this structure:
+
+                                            {
+                                                "General Structural Condition": {
+                                                    "Foundation": "<Description of the foundation condition>",
+                                                    "Walls": "<Description of the walls condition>",
+                                                    "Roof": "<Description of the roof condition>"
+                                                },
+                                                "External Features": {
+                                                    "Façade & Cladding": "<Description of the façade and cladding>",
+                                                    "Windows and Doors": "<Description of windows and doors condition>",
+                                                    "Drainage and Gutters": "<Description of drainage and gutters>"
+                                                },
+                                                "Internal Condition": {
+                                                    "Floors and Ceilings": "<Description of floors and ceilings>",
+                                                    "Walls": "<Description of internal walls condition>",
+                                                    "Electrical and Plumbing": "<Description of electrical and plumbing condition>"
+                                                },
+                                                "Signs of Water Damage or Moisture": {
+                                                    "Stains or Discoloration": "<Description of water damage or discoloration>",
+                                                    "Basement & Foundation": "<Description of any signs in the basement or foundation>"
+                                                },
+                                                "HVAC Systems": "<Description of HVAC systems if visible>",
+                                                "Safety Features": {
+                                                    "Fire Exits": "<Description of fire exits>",
+                                                    "Handrails and Guardrails": "<Description of handrails and guardrails>"
+                                                },
+                                                "Landscaping & Surroundings": {
+                                                    "Site Drainage": "<Description of site drainage>",
+                                                    "Paths and Roads": "<Description of paths and roads>",
+                                                    "Tree Proximity": "<Description of tree proximity>"
+                                                },
+                                                "Construction Progress (if an active project)": {
+                                                    "Consistency with Plans": "<Assessment of consistency with plans>",
+                                                    "Material Usage": "<Assessment of material usage>",
+                                                    "Workmanship": "<Assessment of workmanship>"
+                                                },
+                                                "Temporary Supports & Site Safety (if under construction)": {
+                                                    "Scaffolding": "<Description of scaffolding>",
+                                                    "Temporary Structures": "<Description of temporary structures>"
+                                                },
+                                                "Building Services (if visible)": {
+                                                    "Mechanical & Electrical Installations": "<Description of mechanical and electrical installations>",
+                                                    "Elevators & Staircases": "<Description of elevators and staircases>"
+                                                },
+                                                "Project Type": "<Type of project identified, e.g., building, bridge, road>"
+                                            }'''"
+   
+}'

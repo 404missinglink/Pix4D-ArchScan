@@ -8,8 +8,9 @@ import logging
 import traceback
 from threading import Lock
 from PIL import Image
+import requests  # Added for making HTTP requests
 
-from mistralai import Mistral
+from mistralai import Mistral  # Retained for TEXT_MODEL
 
 from utils.image_utils import encode_image
 from utils.video_utils import save_temp_video
@@ -17,7 +18,7 @@ from frame_extractor import extract_frames_opencv
 from config import (
     API_KEY,
     TEXT_MODEL,
-    VISION_MODEL,
+    PIXTRAL_API_URL,  # New config for Pixtral's API endpoint
     RATE_LIMIT_SECONDS,
     TRIM_START_FRAMES,
     TRIM_END_FRAMES,
@@ -28,7 +29,7 @@ logger = logging.getLogger("DroneFootageSurveyor.services.video_processor")
 
 class VideoProcessor:
     def __init__(self):
-        self.client = Mistral(api_key=API_KEY)
+        self.client = Mistral(api_key=API_KEY)  # Used for TEXT_MODEL
         self.rate_limit_lock = Lock()
         self.last_request_time = 0  # Timestamp of the last API request
 
@@ -40,7 +41,6 @@ class VideoProcessor:
         Yields:
             list: Updated chat history and updated frame summaries.
         """
-        global last_request_time  # Access the global variable for rate limiting
         logger.info("Processing uploaded video.")
         frames = []  # Initialize frames to ensure it's always defined
 
@@ -106,69 +106,21 @@ class VideoProcessor:
                 if base64_image is None:
                     raise ValueError("Image encoding failed.")
 
-                # Define the messages for the chat with enhanced JSON instruction
-                messages = [
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "text",
-                                 "text":''' Provide a detailed analysis of this frame based on the following key areas relevant to structural and construction surveying. The response should be in JSON format with each key area as a separate field. Ensure the information is concise, direct, and easily processed by a larger language model. Additionally, identify and describe the type of project (e.g., building, bridge, road) present in the frame to provide more context.
+                # Save the frame image to the run directory
+                frame_filename = f"frame_{idx+1:03d}.jpg"
+                frame_path = os.path.join(run_dir, frame_filename)
+                img.save(frame_path, format='JPEG')
+                logger.info(f"Saved frame {idx+1} as {frame_path}")
 
-                                            The JSON response should follow this structure:
+                # Construct the image URL using the locally hosted base64 string
+                image_url = f"data:image/jpeg;base64,{base64_image}"
 
-                                            {
-                                                "General Structural Condition": {
-                                                    "Foundation": "<Description of the foundation condition>",
-                                                    "Walls": "<Description of the walls condition>",
-                                                    "Roof": "<Description of the roof condition>"
-                                                },
-                                                "External Features": {
-                                                    "Façade & Cladding": "<Description of the façade and cladding>",
-                                                    "Windows and Doors": "<Description of windows and doors condition>",
-                                                    "Drainage and Gutters": "<Description of drainage and gutters>"
-                                                },
-                                                "Internal Condition": {
-                                                    "Floors and Ceilings": "<Description of floors and ceilings>",
-                                                    "Walls": "<Description of internal walls condition>",
-                                                    "Electrical and Plumbing": "<Description of electrical and plumbing condition>"
-                                                },
-                                                "Signs of Water Damage or Moisture": {
-                                                    "Stains or Discoloration": "<Description of water damage or discoloration>",
-                                                    "Basement & Foundation": "<Description of any signs in the basement or foundation>"
-                                                },
-                                                "HVAC Systems": "<Description of HVAC systems if visible>",
-                                                "Safety Features": {
-                                                    "Fire Exits": "<Description of fire exits>",
-                                                    "Handrails and Guardrails": "<Description of handrails and guardrails>"
-                                                },
-                                                "Landscaping & Surroundings": {
-                                                    "Site Drainage": "<Description of site drainage>",
-                                                    "Paths and Roads": "<Description of paths and roads>",
-                                                    "Tree Proximity": "<Description of tree proximity>"
-                                                },
-                                                "Construction Progress (if an active project)": {
-                                                    "Consistency with Plans": "<Assessment of consistency with plans>",
-                                                    "Material Usage": "<Assessment of material usage>",
-                                                    "Workmanship": "<Assessment of workmanship>"
-                                                },
-                                                "Temporary Supports & Site Safety (if under construction)": {
-                                                    "Scaffolding": "<Description of scaffolding>",
-                                                    "Temporary Structures": "<Description of temporary structures>"
-                                                },
-                                                "Building Services (if visible)": {
-                                                    "Mechanical & Electrical Installations": "<Description of mechanical and electrical installations>",
-                                                    "Elevators & Staircases": "<Description of elevators and staircases>"
-                                                },
-                                                "Project Type": "<Type of project identified, e.g., building, bridge, road>"
-                                            '''},
-                            {
-                                "type": "image_url",
-                                "image_url": f"data:image/jpeg;base64,{base64_image}"
-                            }
-                        ]
-                    }
-                ]
+                # Define the prompt for Pixtral
+                prompt = (
+                    "Provide a detailed analysis of this frame based on the following key areas relevant to structural and construction surveying. "
+                    "The response should be in JSON format with each key area as a separate field. Ensure the information is concise, direct, and easily processed by a larger language model. "
+                    "Additionally, identify and describe the type of project (e.g., building, bridge, road) present in the frame to provide more context."
+                )
 
                 # Implement consistent rate limiting: Ensure at least RATE_LIMIT_SECONDS between API requests
                 with self.rate_limit_lock:
@@ -184,14 +136,14 @@ class VideoProcessor:
                 # Measure latency
                 start_time = time.time()
 
-                # Get the chat response with JSON format
-                chat_response = self.client.chat.complete(
-                    model=VISION_MODEL,
-                    messages=messages,
-                    response_format={
-                        "type": "json_object",
-                    },
-                    temperature=0  # Set temperature to zero for determinism
+                # Make the POST request to Pixtral's API
+                response = requests.post(
+                    PIXTRAL_API_URL,  # e.g., "http://127.0.0.1:5000/describe_image"
+                    headers={"Content-Type": "application/json"},
+                    json={
+                        "image_url": image_url,
+                        "prompt": prompt
+                    }
                 )
 
                 end_time = time.time()
@@ -201,7 +153,13 @@ class VideoProcessor:
                 height, width, channels = frame.shape
                 logger.info(f"Frame {idx+1}: Width={width}px, Height={height}px, Channels={channels}, Latency={latency:.2f}s")
 
-                summary = chat_response.choices[0].message.content
+                if response.status_code != 200:
+                    raise ValueError(f"Pixtral API returned status code {response.status_code}: {response.text}")
+
+                chat_response = response.json()
+
+                # Assuming Pixtral returns {"description": "<JSON string>"}
+                summary = chat_response.get("description", "")
 
                 # Validate if the response is valid JSON and a dictionary
                 try:
@@ -221,7 +179,7 @@ class VideoProcessor:
                         "Construction Progress",
                         "Temporary Supports & Site Safety",
                         "Building Services",
-                        "Type of Project"  # Standardized key
+                        "Project Type"  # Updated key to match Pixtral's response
                     ]
                     for key in required_keys:
                         if key not in summary_json:
@@ -236,12 +194,6 @@ class VideoProcessor:
                     chat_history.append(("System", f"❌ Frame {idx+1}: Received summary is not valid JSON or not a dictionary.\n\n**Raw Response:**\n```json\n{raw_response}\n```"))
                     yield [chat_history, frame_summaries]
                     continue
-
-                # Save the frame image to the run directory
-                frame_filename = f"frame_{idx+1:03d}.jpg"
-                frame_path = os.path.join(run_dir, frame_filename)
-                img.save(frame_path, format='JPEG')
-                logger.info(f"Saved frame {idx+1} as {frame_path}")
 
                 # Append frame data to frames_data list
                 frames_data.append({

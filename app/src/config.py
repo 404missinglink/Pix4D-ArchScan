@@ -13,7 +13,8 @@ if not API_KEY:
 
 # Model configurations
 TEXT_MODEL = "mistral-large-latest"
-VISION_MODEL = "pixtral-12b-2409"
+PIXTRAL_API_URL = "http://127.0.0.1:5000/describe_image"  # Update if different
+# VISION_MODEL = "pixtral-12b-2409"
 
 # Rate limiting
 RATE_LIMIT_SECONDS = 1.0
