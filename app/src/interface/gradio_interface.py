@@ -69,7 +69,7 @@ def create_gradio_interface():
     with gr.Blocks() as iface:
         # Improved header markdown with larger font and an appealing subheading
         gr.Markdown("""
-        <h1 style='font-size: 2.5em; text-align: center;'>🚁 Drone Footage Surveyor</h1>
+        <h1 style='font-size: 2.5em; text-align: center;'>🚁 PIX4D-ARCHSCAN</h1>
         <p style='font-size: 1.2em; text-align: center;'>Upload drone video footage, specify the number of frames to extract, and Pixtral will provide live summarizations of the content in a larger chat interface. The frames and their summaries will be saved automatically.</p>
         """, elem_id="header")
 
