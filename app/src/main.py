@@ -10,7 +10,8 @@ from dotenv import load_dotenv
 import logging
 import traceback
 import json
-import time  # For latency measurement
+import time  # For latency measurement and rate limiting
+from threading import Lock  # For thread-safe rate limiting
 
 # Import the frame extraction function from the frame_extractor module
 from frame_extractor import extract_frames_opencv
@@ -42,6 +43,14 @@ vision_model = "pixtral-12b-2409"
 # Initialize the Mistral client
 client = Mistral(api_key=api_key)
 
+# Initialize a lock for rate limiting to ensure thread safety
+rate_limit_lock = Lock()
+last_request_time = 0  # Timestamp of the last API request
+
+# Constants for trimming frames
+TRIM_START_FRAMES = 30  # Number of frames to trim from the start
+TRIM_END_FRAMES = 30    # Number of frames to trim from the end
+
 def encode_image(image):
     """
     Encode the image to base64.
@@ -65,14 +74,13 @@ def encode_image(image):
         logger.debug(traceback.format_exc())
         return None
 
-def process_video(video_path, max_frames=10, frame_interval=None, include_images=False, history=""):
+def process_video(video_path, max_frames=10, include_images=False, history=""):
     """
     Processes the uploaded video and updates the Markdown summary history in real-time.
     
     Parameters:
         video_path (str): Path to the uploaded video.
         max_frames (int): Maximum number of frames to extract.
-        frame_interval (int, optional): Interval between frames to extract.
         include_images (bool): Whether to include images in the summaries.
         history (str): Accumulated Markdown summaries.
     
@@ -81,7 +89,9 @@ def process_video(video_path, max_frames=10, frame_interval=None, include_images
             - Updated Markdown summaries.
             - Updated history state.
     """
+    global last_request_time  # Access the global variable for rate limiting
     logger.info("Processing uploaded video.")
+    frames = []  # Initialize frames to ensure it's always defined
     try:
         with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp:
             with open(video_path, "rb") as f:
@@ -97,7 +107,14 @@ def process_video(video_path, max_frames=10, frame_interval=None, include_images
         return
 
     try:
-        frames = extract_frames_opencv(tmp_path, max_frames=max_frames, frame_interval=frame_interval)
+        # Extract frames with dynamic interval and trimming
+        frames = extract_frames_opencv(
+            video_path=tmp_path,
+            max_frames=max_frames,
+            frame_interval=None,  # Let frame_extractor handle it
+            trim_start=TRIM_START_FRAMES,
+            trim_end=TRIM_END_FRAMES
+        )
     except Exception as e:
         logger.error(f"Failed to extract frames: {str(e)}")
         error_md = "## Error\n\nFailed to extract frames from the video.\n"
@@ -124,11 +141,6 @@ def process_video(video_path, max_frames=10, frame_interval=None, include_images
         try:
             img = Image.fromarray(frame)
             base64_image = encode_image(img)  # Always encode the image
-            if include_images and not base64_image:
-                frame_summary_md = f"### Frame {idx}\n\n**Error**: Failed to encode image.\n\n"
-                history += frame_summary_md
-                yield history, history
-                continue
 
             # Define the messages for the chat with strict JSON instruction
             messages = [
@@ -146,6 +158,17 @@ def process_video(video_path, max_frames=10, frame_interval=None, include_images
                     ]
                 }
             ]
+
+            # Implement rate limiting: Ensure at least 1 second between API requests
+            with rate_limit_lock:
+                current_time = time.time()
+                elapsed_time = current_time - last_request_time
+                if elapsed_time < 1:
+                    sleep_time = 1.4 - elapsed_time  # Corrected to 1 second
+                    logger.info(f"Rate limiting in effect. Sleeping for {sleep_time:.2f} seconds.")
+                    time.sleep(sleep_time)
+                # Update the last_request_time to the current time after sleeping
+                last_request_time = time.time()
 
             # Measure latency
             start_time = time.time()
@@ -210,14 +233,14 @@ def process_video(video_path, max_frames=10, frame_interval=None, include_images
 
 # Define Gradio interface
 with gr.Blocks() as iface:
-    gr.Markdown("# Drone Footage Summarizer\nUpload drone video footage, specify the number of frames to extract and the interval, and Pixtral will provide live summarizations of the content in Markdown format.")
+    gr.Markdown("# Drone Footage Summarizer\nUpload drone video footage, specify the number of frames to extract, and Pixtral will provide live summarizations of the content in Markdown format.")
 
     with gr.Row():
         with gr.Column():
             video_input = gr.Video(label="Upload Drone Footage")
             max_frames_input = gr.Number(label="Max Frames to Extract", value=10, precision=0, step=1)
-            frame_interval_input = gr.Number(label="Frame Interval (Optional)", value=None, precision=0, step=1)
-            # Set the checkbox to be off by default by setting value=False
+            # Removed frame_interval_input as it's now handled by frame_extractor.py
+            # include_images_input remains to control image display
             include_images_input = gr.Checkbox(label="Include Frame Images in Summaries", value=False)
             submit_btn = gr.Button("Process Video")
         with gr.Column():
@@ -230,7 +253,7 @@ with gr.Blocks() as iface:
     # Define the generator function for streaming summaries
     submit_btn.click(
         fn=process_video,
-        inputs=[video_input, max_frames_input, frame_interval_input, include_images_input, summary_history],
+        inputs=[video_input, max_frames_input, include_images_input, summary_history],
         outputs=[summary_output, summary_history],
         show_progress=True
     )
