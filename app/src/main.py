@@ -12,6 +12,7 @@ import traceback
 import json
 import time  # For latency measurement and rate limiting
 from threading import Lock  # For thread-safe rate limiting
+import uuid  # For unique run identifiers
 
 # Import the frame extraction function from the frame_extractor module
 from frame_extractor import extract_frames_opencv
@@ -51,6 +52,12 @@ last_request_time = 0  # Timestamp of the last API request
 TRIM_START_FRAMES = 30  # Number of frames to trim from the start
 TRIM_END_FRAMES = 30    # Number of frames to trim from the end
 
+# Base directory to save frames and summaries
+BASE_FRAMES_DIR = "frames"
+
+# Ensure the base frames directory exists
+os.makedirs(BASE_FRAMES_DIR, exist_ok=True)
+
 def encode_image(image):
     """
     Encode the image to base64.
@@ -76,7 +83,7 @@ def encode_image(image):
 
 def process_video(video_path, max_frames=10, include_images=False, chat_history=None, frame_summaries=None):
     """
-    Processes the uploaded video and updates the Chatbot history and frame summaries in real-time.
+    Processes the uploaded video, updates the Chatbot history, and saves frames with summaries to disk.
 
     Parameters:
         video_path (str): Path to the uploaded video.
@@ -97,6 +104,15 @@ def process_video(video_path, max_frames=10, include_images=False, chat_history=
         chat_history = []
     if frame_summaries is None:
         frame_summaries = []
+
+    # Generate a unique identifier for this run
+    run_id = str(uuid.uuid4())
+    run_dir = os.path.join(BASE_FRAMES_DIR, run_id)
+    os.makedirs(run_dir, exist_ok=True)
+    logger.info(f"Created run directory at {run_dir}")
+
+    # Initialize a list to store frame data for JSON
+    frames_data = []
 
     try:
         # Inform the user that processing has started
@@ -272,6 +288,19 @@ def process_video(video_path, max_frames=10, include_images=False, chat_history=
                 yield [chat_history, frame_summaries]
                 continue
 
+            # Save the frame image to the run directory
+            frame_filename = f"frame_{idx+1:03d}.jpg"
+            frame_path = os.path.join(run_dir, frame_filename)
+            img.save(frame_path, format='JPEG')
+            logger.info(f"Saved frame {idx+1} as {frame_path}")
+
+            # Append frame data to frames_data list
+            frames_data.append({
+                "frame_number": idx + 1,
+                "frame_path": frame_path,
+                "summary": summary_text
+            })
+
             # Format the summary for display
             if include_images and base64_image:
                 bot_message = f"### Frame {idx+1}\n\n![Frame {idx+1}](data:image/jpeg;base64,{base64_image})\n\n**Summary:**\n```json\n{summary_text}\n```"
@@ -298,155 +327,36 @@ def process_video(video_path, max_frames=10, include_images=False, chat_history=
             chat_history.append(("System", frame_error_md))
             yield [chat_history, frame_summaries]
 
-    # After processing all frames, generate an overall summary and potential solutions
+    # After processing all frames, save the JSON file with frame paths and summaries
     try:
-        # Inform the user that an overall summary is being generated
-        chat_history.append(("System", "📝 Generating an overall summary and potential solutions based on the analysis of all frames..."))
-        yield [chat_history, frame_summaries]
-
-        # Create a context by joining all frame summaries
-        aggregated_summaries = "\n\n".join(frame_summaries)
-
-        # Define the prompt for the text model
-        prompt = (
-            "Based on the following frame summaries from a structural and construction survey, provide a comprehensive overall summary highlighting the key issues identified. "
-            "Additionally, suggest potential solutions or actions to address these issues. Ensure the response is clear, concise, and actionable.\n\n"
-            f"{aggregated_summaries}"
-        )
-
-        # Define messages for the chat completion
-        messages = [
-            {"role": "system", "content": "You are a helpful assistant specialized in structural and construction surveying."},
-            {"role": "user", "content": prompt}
-        ]
-
-        # Implement consistent rate limiting: Ensure at least 1 second between API requests
-        with rate_limit_lock:
-            current_time = time.time()
-            elapsed_time = current_time - last_request_time
-            if elapsed_time < 1.0:
-                sleep_time = 1.0 - elapsed_time
-                logger.info(f"Sleeping for {sleep_time:.2f} seconds to maintain rate limiting.")
-                time.sleep(sleep_time)
-            # Update the last_request_time to the current time before making the call
-            last_request_time = time.time()
-
-        # Measure latency
-        start_time = time.time()
-
-        # Get the response from the text model
-        overall_response = client.chat.complete(
-            model=text_model,
-            messages=messages,
-            temperature=0  # Set temperature to zero for determinism
-        )
-
-        end_time = time.time()
-        latency = end_time - start_time  # in seconds
-
-        logger.info(f"Overall Summary Latency: {latency:.2f}s")
-
-        overall_summary = overall_response.choices[0].message.content.strip()
-
-        # Format the overall summary for display
-        overall_summary_md = f"### Overall Summary and Potential Solutions\n\n{overall_summary}"
-
-        # Append the overall summary to the chat_history
-        chat_history.append(("System", overall_summary_md))
-
-        # Yield the updated chat_history and frame_summaries
-        yield [chat_history, frame_summaries]
-
+        json_data = {
+            "run_id": run_id,
+            "frames": frames_data
+        }
+        json_path = os.path.join(run_dir, "frames_summary.json")
+        with open(json_path, "w") as json_file:
+            json.dump(json_data, json_file, indent=2)
+        logger.info(f"Saved frames summary JSON at {json_path}")
     except Exception as e:
-        logger.error(f"Error generating overall summary: {str(e)}")
+        logger.error(f"Error saving frames summary JSON: {str(e)}")
         logger.debug(traceback.format_exc())
-        chat_history.append(("System", "❌ An error occurred while generating the overall summary and potential solutions."))
+        chat_history.append(("System", "❌ An error occurred while saving frames summaries to disk."))
         yield [chat_history, frame_summaries]
+        return
 
-    # Finally, inform the user that processing is completed
-    completion_md = "✅ **Processing Completed**\n\nAll frame summaries and the overall analysis have been generated."
-    chat_history.append(("System", completion_md))
+    # Finally, inform the user that processing is completed without an additional message
+    # (As per previous instructions)
     yield [chat_history, frame_summaries]
 
 def handle_user_question(user_input, chat_history, frame_summaries):
     """
-    Handles user questions by generating responses based on frame summaries.
-
-    Parameters:
-        user_input (str): The user's question.
-        chat_history (list): The current chat history.
-        frame_summaries (list): The list of frame summaries.
-
-    Returns:
-        list: Updated chat history and unchanged frame summaries.
+    This function is no longer needed as we're removing the Q&A feature.
     """
-    if not user_input.strip():
-        return [chat_history, frame_summaries]  # Ignore empty messages
-
-    # Append user message to chat_history
-    chat_history.append((user_input, None))
-
-    # Create a context by joining all frame summaries
-    context = "\n\n".join([f"Frame {i+1}: {summary}" for i, summary in enumerate(frame_summaries)])
-
-    # Define the prompt for the text model
-    prompt = (
-        "You are an assistant that answers questions based on the following frame summaries:\n\n"
-        f"{context}\n\n"
-        "User Question: {user_question}\n\n"
-        "Answer:"
-    ).format(user_question=user_input)
-
-    # Define messages for the chat completion
-    messages = [
-        {"role": "system", "content": "You are a helpful assistant specialized in structural and construction surveying."},
-        {"role": "user", "content": prompt}
-    ]
-
-    try:
-        # Implement consistent rate limiting: Ensure at least 1 second between API requests
-        global last_request_time
-        with rate_limit_lock:
-            current_time = time.time()
-            elapsed_time = current_time - last_request_time
-            if elapsed_time < 1.0:
-                sleep_time = 1.0 - elapsed_time
-                logger.info(f"Sleeping for {sleep_time:.2f} seconds to maintain rate limiting.")
-                time.sleep(sleep_time)
-            # Update the last_request_time to the current time before making the call
-            last_request_time = time.time()
-
-        # Measure latency
-        start_time = time.time()
-
-        # Get the response from the text model
-        response = client.chat.complete(
-            model=text_model,
-            messages=messages,
-            temperature=0  # Set temperature to zero for determinism
-        )
-
-        end_time = time.time()
-        latency = end_time - start_time  # in seconds
-
-        logger.info(f"User Question Latency: {latency:.2f}s")
-
-        answer = response.choices[0].message.content.strip()
-
-    except Exception as e:
-        logger.error(f"Error handling user question: {str(e)}")
-        logger.debug(traceback.format_exc())
-        answer = "❌ An error occurred while processing your question."
-
-    # Append bot response to chat_history
-    chat_history[-1] = (user_input, answer)
-
-    # Yield the updated chat_history and unchanged frame_summaries
-    return [chat_history, frame_summaries]
+    pass  # Or remove this function entirely
 
 # Define Gradio interface
 with gr.Blocks() as iface:
-    gr.Markdown("# 🚁 Drone Footage Surveyor\nUpload drone video footage, specify the number of frames to extract, and Pixtral will provide live summarizations of the content in a chat interface. After processing, you can ask questions about the summaries.")
+    gr.Markdown("# 🚁 Drone Footage Surveyor\nUpload drone video footage, specify the number of frames to extract, and Pixtral will provide live summarizations of the content in a larger chat interface. The frames and their summaries will be saved automatically.")
 
     with gr.Row():
         with gr.Column(scale=1):
@@ -454,21 +364,22 @@ with gr.Blocks() as iface:
             max_frames_input = gr.Number(label="🔢 Max Frames to Extract", value=10, precision=0, step=1, interactive=True)
             include_images_input = gr.Checkbox(label="🖼️ Include Frame Images in Summaries", value=False)
             submit_btn = gr.Button("▶️ Process Video")
-        with gr.Column(scale=2):
+        with gr.Column(scale=3):  # Increased scale for a larger chatbot
             chatbot = gr.Chatbot(label="💬 Live Summarization")
 
     # Hidden states to store chat history and frame summaries
     chat_history = gr.State(value=[])
     frame_summaries = gr.State(value=[])
 
-    with gr.Row():
-        with gr.Column(scale=3):
-            user_question = gr.Textbox(
-                label="❓ Ask a Question",
-                placeholder="Type your question here...",
-                interactive=True
-            )
-            send_btn = gr.Button("Send")
+    # Removed the "Ask a Question" section
+    # with gr.Row():
+    #     with gr.Column(scale=3):
+    #         user_question = gr.Textbox(
+    #             label="❓ Ask a Question",
+    #             placeholder="Type your question here...",
+    #             interactive=True
+    #         )
+    #         send_btn = gr.Button("Send")
 
     # Define the generator function for streaming summaries to the chatbot
     submit_btn.click(
@@ -478,21 +389,21 @@ with gr.Blocks() as iface:
         show_progress=True
     )
 
-    # Define the function to handle user questions
-    send_btn.click(
-        fn=handle_user_question,
-        inputs=[user_question, chat_history, frame_summaries],
-        outputs=[chatbot, frame_summaries],
-        queue=True  # Enable queuing for better performance
-    )
+    # Removed the user question handlers
+    # send_btn.click(
+    #     fn=handle_user_question,
+    #     inputs=[user_question, chat_history, frame_summaries],
+    #     outputs=[chatbot, frame_summaries],
+    #     queue=True  # Enable queuing for better performance
+    # )
 
     # Allow pressing Enter in the textbox to send the question
-    user_question.submit(
-        fn=handle_user_question,
-        inputs=[user_question, chat_history, frame_summaries],
-        outputs=[chatbot, frame_summaries],
-        queue=True
-    )
+    # user_question.submit(
+    #     fn=handle_user_question,
+    #     inputs=[user_question, chat_history, frame_summaries],
+    #     outputs=[chatbot, frame_summaries],
+    #     queue=True
+    # )
 
 if __name__ == "__main__":
     try:
