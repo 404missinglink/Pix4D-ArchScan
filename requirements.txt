@@ -1,2 +1,5 @@
-gradio
-mistralai
+gradio==4.44.1
+opencv-python==4.10.0.84
+mistralai==1.1.0
+pillow==10.4.0
+openai
