@@ -96,7 +96,7 @@ def create_gradio_interface():
             if selected_input_type == "YouTube Link":
                 return gr.update(visible=True), gr.update(visible=False)
             else:
-                return gr.update(visible(False)), gr.update(visible=True)
+                return gr.update(visible=False), gr.update(visible=True)
 
         # Update the visibility of YouTube link and local video inputs
         input_type.change(toggle_input_fields, inputs=input_type, outputs=[youtube_link, local_video])
