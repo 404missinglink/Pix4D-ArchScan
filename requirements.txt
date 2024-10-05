@@ -4,3 +4,4 @@ mistralai==1.1.0
 pillow==10.4.0
 openai
 requests
+yt-dlp

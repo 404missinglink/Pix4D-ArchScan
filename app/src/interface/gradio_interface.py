@@ -4,6 +4,7 @@ import os
 from datetime import datetime
 from services.video_processor import VideoProcessor
 from config import UPLOAD_VIDEOS_FOLDER  # Importing from config.py
+from utils.download_video import download_video  # Importing from download_video.py
 
 logger = logging.getLogger("DroneFootageSurveyor.interface.gradio_interface")
 
@@ -35,28 +36,29 @@ def process_input(input_type, youtube_link, local_video, max_frames, include_ima
         ensure_destination_folder_exists(video_folder)
         
         # Check if the video has already been processed
-        video_filename, timestamp = generate_timestamped_filename()
-        video_path = os.path.join(video_folder, video_filename)
+        video_filename = f"{video_id}.mp4"
+        output_path1 = os.path.join(video_folder, video_filename)
+        output_path = os.path.join(output_path1, youtube_link.split('=')[-1]+'.mp4')
         
-        if not os.path.exists(video_path):  # Only download if the video doesn't exist
+        if not os.path.exists(output_path):  # Only download if the video doesn't exist
             summary_message = f"Processing YouTube video: {youtube_link}"
-            video_processor.process_video(youtube_link, video_path, max_frames, include_images)
+            # Use the download_video function from download_video.py
+            download_video(youtube_link, output_path)
         else:
             summary_message = f"Video {video_id} has already been processed. Skipping download."
     
     elif input_type == "Local File":
         # For local files, we'll save it with a timestamp in the main folder
         video_filename, timestamp = generate_timestamped_filename()
-        video_path = os.path.join(UPLOAD_VIDEOS_FOLDER, video_filename)
         summary_message = f"Processing local video file: {video_filename}"
         
         # Process the local video file using the existing function
-        video_processor.process_video(local_video, video_path, max_frames, include_images)
+        video_processor.process_video(local_video, output_path, max_frames, include_images)
     
     # Add the result to the chat history
     chat_history.append(("System", summary_message))
     
-    return chat_history, timestamp
+    return chat_history, output_path
 
 def create_gradio_interface():
     """
@@ -94,15 +96,15 @@ def create_gradio_interface():
             if selected_input_type == "YouTube Link":
                 return gr.update(visible=True), gr.update(visible=False)
             else:
-                return gr.update(visible=False), gr.update(visible=True)
+                return gr.update(visible(False)), gr.update(visible=True)
 
         # Update the visibility of YouTube link and local video inputs
         input_type.change(toggle_input_fields, inputs=input_type, outputs=[youtube_link, local_video])
 
         # Define the generator function for streaming summaries to the chatbot
         submit_btn.click(
-            fn=video_processor.process_video,
-            inputs=[youtube_link if input_type == "YouTube Link" else local_video, max_frames_input, include_images_input, chat_history, frame_summaries],
+            fn=process_input,
+            inputs=[input_type, youtube_link, local_video, max_frames_input, include_images_input, chat_history],
             outputs=[chatbot, frame_summaries],
             show_progress=True
         )

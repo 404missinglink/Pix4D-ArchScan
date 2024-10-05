@@ -27,7 +27,7 @@ TRIM_END_FRAMES = 30
 BASE_FRAMES_DIR = "frames"
 
 # Hardcoded destination folder
-UPLOAD_VIDEOS_FOLDER = os.path.expanduser("~/upload_videos")
+UPLOAD_VIDEOS_FOLDER = "upload_videos"
 
 
 # Ensure the base frames directory exists
