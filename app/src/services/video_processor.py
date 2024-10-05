@@ -112,14 +112,61 @@ class VideoProcessor:
                 img.save(frame_path, format='JPEG')
                 logger.info(f"Saved frame {idx+1} as {frame_path}")
 
-                # Construct the image URL using the locally hosted base64 string
+                # Construct the image URL using the base64 string
                 image_url = f"data:image/jpeg;base64,{base64_image}"
 
                 # Define the prompt for Pixtral
                 prompt = (
-                    "Provide a detailed analysis of this frame based on the following key areas relevant to structural and construction surveying. "
-                    "The response should be in JSON format with each key area as a separate field. Ensure the information is concise, direct, and easily processed by a larger language model. "
-                    "Additionally, identify and describe the type of project (e.g., building, bridge, road) present in the frame to provide more context."
+                    '''
+Provide a detailed analysis of this frame based on the following key areas relevant to structural and construction surveying. The response should be in plain text format with each key area as a separate section. Ensure the information is concise, direct, and easily processed by a larger language model. Additionally, identify and describe the type of project (e.g., building, bridge, road) present in the frame to provide more context.
+
+### Key Areas:
+
+- **General Structural Condition**: 
+  - Foundation
+  - Walls
+  - Roof
+
+- **External Features**: 
+  - Façade & Cladding
+  - Windows and Doors
+  - Drainage and Gutters
+
+- **Internal Condition**: 
+  - Floors and Ceilings
+  - Walls
+  - Electrical and Plumbing
+
+- **Signs of Water Damage or Moisture**: 
+  - Stains or Discoloration
+  - Basement & Foundation
+
+- **HVAC Systems** (if visible)
+
+- **Safety Features**: 
+  - Fire Exits
+  - Handrails and Guardrails
+
+- **Landscaping & Surroundings**: 
+  - Site Drainage
+  - Paths and Roads
+  - Tree Proximity
+
+- **Construction Progress** (if an active project): 
+  - Consistency with Plans
+  - Material Usage
+  - Workmanship
+
+- **Temporary Supports & Site Safety** (if under construction): 
+  - Scaffolding
+  - Temporary Structures
+
+- **Building Services** (if visible): 
+  - Mechanical & Electrical Installations
+  - Elevators & Staircases
+
+- **Project Type**: Identify and describe the type of project (e.g., building, bridge, road).
+'''
                 )
 
                 # Implement consistent rate limiting: Ensure at least RATE_LIMIT_SECONDS between API requests
@@ -158,59 +205,32 @@ class VideoProcessor:
 
                 chat_response = response.json()
 
-                # Assuming Pixtral returns {"description": "<JSON string>"}
+                # Assuming Pixtral returns {"description": "<Plain text string>"}
                 summary = chat_response.get("description", "")
 
-                # Validate if the response is valid JSON and a dictionary
-                try:
-                    summary_json = json.loads(summary)
-                    if not isinstance(summary_json, dict):
-                        raise ValueError("Parsed JSON is not a dictionary.")
-
-                    # Ensure all key areas are present in the JSON
-                    required_keys = [
-                        "General Structural Condition",
-                        "External Features",
-                        "Internal Condition",
-                        "Signs of Water Damage or Moisture",
-                        "HVAC Systems",
-                        "Safety Features",
-                        "Landscaping & Surroundings",
-                        "Construction Progress",
-                        "Temporary Supports & Site Safety",
-                        "Building Services",
-                        "Project Type"  # Updated key to match Pixtral's response
-                    ]
-                    for key in required_keys:
-                        if key not in summary_json:
-                            summary_json[key] = "N/A"
-                    summary_text = json.dumps(summary_json, indent=2)
-                    logger.info(f"Frame {idx+1} summarized successfully.")
-                except (json.JSONDecodeError, ValueError) as e:
-                    # If not valid JSON or not a dict, include as plain text with error
-                    summary_text = "❌ Invalid JSON format received."
-                    raw_response = summary
-                    logger.warning(f"Frame {idx+1} summary is not valid JSON or not a dictionary.")
-                    chat_history.append(("System", f"❌ Frame {idx+1}: Received summary is not valid JSON or not a dictionary.\n\n**Raw Response:**\n```json\n{raw_response}\n```"))
-                    yield [chat_history, frame_summaries]
-                    continue
+                if not summary.strip():
+                    raise ValueError("Pixtral API returned an empty summary.")
 
                 # Append frame data to frames_data list
                 frames_data.append({
                     "frame_number": idx + 1,
                     "frame_path": frame_path,
-                    "summary": summary_text
+                    "summary": summary.strip()  # Store the plain text summary
                 })
 
                 # Format the summary for display
                 if include_images and base64_image:
-                    bot_message = f"### Frame {idx+1}\n\n![Frame {idx+1}](data:image/jpeg;base64,{base64_image})\n\n**Summary:**\n```json\n{summary_text}\n```"
+                    bot_message = (
+                        f"### Frame {idx+1}\n\n"
+                        f"![Frame {idx+1}](data:image/jpeg;base64,{base64_image})\n\n"
+                        f"**Summary:**\n{summary.strip()}"
+                    )
                 else:
-                    bot_message = f"### Frame {idx+1}\n\n**Summary:**\n```json\n{summary_text}\n```"
+                    bot_message = f"### Frame {idx+1}\n\n**Summary:**\n{summary.strip()}"
 
                 # Append the new summary to the history and frame_summaries
                 chat_history.append(("System", bot_message))
-                frame_summaries.append(summary_text)  # Store only the text summaries
+                frame_summaries.append(summary.strip())  # Store the plain text summaries
 
                 # Yield the updated chat_history and frame_summaries
                 yield [chat_history, frame_summaries]
@@ -234,25 +254,13 @@ class VideoProcessor:
             chat_history.append(("System", "📝 Generating an overall summary based on the analysis of all frames..."))
             yield [chat_history, frame_summaries]
 
-            # Create a context by joining all frame summaries
-            aggregated_summaries = "\n\n".join([frame['summary'] for frame in frames_data if 'summary' in frame])
+            # Create a context by aggregating all frame summaries as plain text
+            aggregated_summaries = "\n\n".join(frame_summaries)
 
             # Define the prompt for the text model
             prompt = (
-                "From the following structural and construction survey summaries, provide a brief and actionable summary of key issues and recommended actions. "
-                "Avoid unnecessary details and focus on practical recommendations. Follow this example structure:"
-                "\n\n"
-                "Example Structure:"
-                "\n\n"
-                "Key Issue Category (e.g., Foundation & Walls):"
-                "\n- Issue: Brief description of the problem."
-                "\n- Action: Clear, actionable recommendation to address the issue."
-                "\n\n"
-                "Key Issue Category (e.g., Roof):"
-                "\n- Issue: Brief description of the problem."
-                "\n- Action: Clear, actionable recommendation to address the issue."
-                "\n\n"
-                "Use this structure for all identified issues. Be concise and focus on critical actions."
+                "From the following structural and construction survey summaries, generate a concise, yet detailed summary that includes both positive points and key issues with actionable recommendations. "
+                "Ensure all points are relevant to the project type and provide value by focusing on critical improvements and benefits. Avoid repetition, and ensure the report reads smoothly while covering all important aspects. Do not contradict yourself. Use only information from the summaries below.\n\n"
                 f"{aggregated_summaries}"
             )
 
@@ -261,7 +269,6 @@ class VideoProcessor:
                 {"role": "system", "content": "You are a helpful assistant specialized in structural and construction surveying. You provide concise, practical recommendations without redundant or repeated information."},
                 {"role": "user", "content": prompt}
             ]
-
 
             # Implement consistent rate limiting: Ensure at least RATE_LIMIT_SECONDS between API requests
             with self.rate_limit_lock:
