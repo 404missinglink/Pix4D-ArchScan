@@ -22,17 +22,27 @@ ARCHSCAN revolutionizes the surveying process by:
 
 ## How we built it
 
-ARCHSCAN is a multi-agent system comprising:
+ARCHSCAN is a multi-agent system comprising two powerful models working in tandem:
 
-1. **Specialized fine-tuned version of Pixtral**
+1. Specialized fine-tuned version of Pixtral
 
-   - Fine-tuned on satellite images and VQA (Visual Question Answering) pairs
-   - Creates highly accurate summaries based on set criteria
-   - **Finetuning and inference performed on Nebius-hosted NVIDIA H100 machine**
+- Fine-tuned on satellite images and VQA (Visual Question Answering) pairs
+  Provides highly targeted, descriptive summaries about scenes and features in the aerial footage
+- Identifies specific infrastructure elements, their condition, and notable characteristics
+- Creates detailed, frame-by-frame analysis based on set criteria
+  Finetuning and inference performed on Nebius-hosted NVIDIA H100 machine
 
-2. **Mistral Large 2**
-   - Leverages its larger parameter count
-   - Applies reasoning to generate actionable summaries
+2. Mistral Large 2
+
+- Leverages its larger parameter count for advanced reasoning and synthesis
+- Processes the detailed summaries from Pixtral to generate powerful, actionable insights
+- Provides higher-level analysis, recommendations, and prioritization of issues
+- Contextualizes the visual data within broader infrastructure management strategies
+
+This two-stage approach allows us to combine the strengths of both models:
+
+- Pixtral excels at extracting relevant visual information from aerial imagery
+- Mistral Large 2 excels at interpreting this information and providing strategic, actionable advice
 
 **User Interface:** The application is accessible through a Gradio UI.
 
@@ -80,7 +90,7 @@ Two-step finetuning process:
 ## Challenges we ran into
 
 - Rate limiting on Mistral API
-- High inference time per frame on Pixtral (10s), limiting usability with numerous frames
+- High inference time per frame on Pixtral (10s), limiting usability with 30+ frames
 
 ## Accomplishments that we're proud of
 
@@ -106,7 +116,7 @@ We're excited to continue building upon ARCHSCAN:
    - Implement RAG (Retrieval-Augmented Generation) to improve speed and quality of Mistral Large 2 summaries
 4. **End goal:** Further reduce time investment and provide workers with the data they need to make informed decisions
 
-**Note for H100 Users:**
+**Note for H100:**
 If you have access to an NVIDIA H100 machine, you can run inference and use our finetuned model for significantly better results. Check out our repository:
 [https://github.com/404missinglink/Pix4D-ArchScan/tree/UI_Finetune](https://github.com/404missinglink/Pix4D-ArchScan/tree/UI_Finetune)
 
