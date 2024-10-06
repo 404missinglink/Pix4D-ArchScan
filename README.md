@@ -39,7 +39,7 @@ To get started, ensure you have the following:
 
    - Open `config.py` and set the Pixtral model endpoint:
      ```python
-     PIXTRAL_API_URL = "http://127.0.0.1:5000/describe_image"  # Update if different
+     PIXTRAL_API_URL = "http://127.0.0.1:8888/describe_image"  # Update if different
      ```
 
 5. Create a `.env` file in the same directory with your API key:
@@ -67,5 +67,5 @@ This version employs a finetuned pixtral VLM on a Nvidia H100 and a base mistral
 ### Accessing the H100 API from Nebius
 
 ```
-ssh -L 5000:127.0.0.1:5000 admin@195.242.23.219
+ssh -L 8888:127.0.0.1:8888 admin@195.242.23.219
 ```
