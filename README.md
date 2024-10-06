@@ -7,7 +7,7 @@ A video to text summarisation tool using a finetuned Pixtral model for frame des
 - Video's must be in `MP4` format
 - Python 3.10.14
 
-## Accessing the H100 API
+## Accessing the H100 API from Nebius
 
 ```
 ssh -L 5000:127.0.0.1:5000 admin@195.242.23.219
