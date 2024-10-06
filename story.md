@@ -119,5 +119,3 @@ We're excited to continue building upon ARCHSCAN:
 **Note for H100:**
 If you have access to an NVIDIA H100 machine, you can run inference and use our finetuned model for significantly better results. Check out our repository:
 [https://github.com/404missinglink/Pix4D-ArchScan/tree/UI_Finetune](https://github.com/404missinglink/Pix4D-ArchScan/tree/UI_Finetune)
-
-This version includes our latest improvements and optimizations for high-performance hardware, allowing you to leverage the full potential of ARCHSCAN.
