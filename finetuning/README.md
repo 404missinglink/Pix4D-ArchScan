@@ -26,8 +26,11 @@ Two-step Finetuning using :
 
 ## File descriptions
 
-create_dataset.py: Creates image-text pairs for making a dataset for finetuning (Uses drone imagery and Ertugrul/Pixtral-12B-Captioner-Relaxed model from Hugging face)
-finetune_LLaVa.py:Tries to finetune the Ertugrul/Pixtral-12B-Captioner-Relaxed model using targetted drone imagery-image caption dataset
-Parameters are tunable.
-download.py: Downloader for dataset and model from HuggingFace
-login.py: Login for HuggingFace model and dataset access
+- create_dataset.py: Creates image-text pairs for making a dataset for finetuning (Uses drone imagery and Ertugrul/Pixtral-12B-Captioner-Relaxed model from Hugging face)
+
+- finetune_LLaVa.py:Tries to finetune the Ertugrul/Pixtral-12B-Captioner-Relaxed model using targetted drone imagery-image caption dataset
+  Parameters are tunable.
+
+- download.py: Downloader for dataset and model from HuggingFace
+
+- login.py: Login for HuggingFace model and dataset access
