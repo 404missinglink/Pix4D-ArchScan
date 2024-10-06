@@ -1,5 +1,5 @@
 # PIX4D ArchScan 🚁
-
+![ARCHSCAN Logo](https://github.com/404missinglink/Pix4D-ArchScan/raw/UI_Finetune/media/images/image-16.jpeg)
 **PIX4D ArchScan** is an advanced video-to-text summarisation tool designed to process drone footage of construction sites. It utilises a fine-tuned Pixtral model for frame descriptions and a Mistral Large agent for comprehensive assistance.
 
 ## Features
