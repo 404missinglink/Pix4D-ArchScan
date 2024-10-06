@@ -1,4 +1,5 @@
 # ArchScan 🚁
+
 ![ARCHSCAN Logo](https://github.com/404missinglink/Pix4D-ArchScan/raw/UI_Finetune/media/images/image-16.jpeg)
 **ArchScan** is an advanced video-to-text summarisation tool designed to process drone footage of construction sites. It utilises a fine-tuned Pixtral model for frame descriptions and a Mistral Large agent for comprehensive assistance.
 
@@ -21,6 +22,7 @@ To get started, ensure you have the following:
    ```bash
    git clone https://github.com/404missinglink/Pix4D-ArchScan.git
    cd PIX4D-ArchScan
+   git checkout UI_Finetune
    ```
 
 2. Navigate to the source directory:
