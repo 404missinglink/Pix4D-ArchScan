@@ -118,13 +118,9 @@ Provide detailed observations in the following key areas:
 """
 )
 
-API_KEY = os.getenv("API_KEY")
 
 TEXT_MODEL = "mistral-large-latest"
 PIXTRAL_API_URL = "http://127.0.0.1:8888/describe_image"
-
-# Define index base path
-INDEX_PATH = "data"  # As specified by the user
 
 
 RATE_LIMIT_SECONDS = 1.0
