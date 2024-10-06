@@ -16,15 +16,16 @@ Start with instruction-tuned offspring of Pixtral in Hugging face: https://huggi
 
 Already looking better than “Vanilla Pixtral”: https://huggingface.co/mistralai/Pixtral-12B-2409
 
-Step 2: **Fine-Tune Dataset creation** 
+Step 2: **Fine-Tune Dataset creation**
 
 Two-step Finetuning using :
 
-1) Flood dataset in Image Caption setup (Already available dataset)
+1. Flood dataset in Image Caption setup (Already available dataset)
 
-2) Aerial data in Image Caption setup (Captions created using Pixtral with quantitative more than descriptive questions)  (Created a small batch of 10 image-caption pairs)
+2. Aerial data in Image Caption setup (Captions created using Pixtral with quantitative more than descriptive questions) (Created a small batch of 10 image-caption pairs)
 
-##File descriptions
+## File descriptions
+
 create_dataset.py: Creates image-text pairs for making a dataset for finetuning (Uses drone imagery and Ertugrul/Pixtral-12B-Captioner-Relaxed model from Hugging face)
 finetune_LLaVa.py:Tries to finetune the Ertugrul/Pixtral-12B-Captioner-Relaxed model using targetted drone imagery-image caption dataset
 Parameters are tunable.
