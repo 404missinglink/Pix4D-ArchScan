@@ -76,7 +76,9 @@ def extract_frames_opencv(video_path, max_frames=10, frame_interval=None, trim_s
 
             # Save frame as image if output_dir is specified
             if frame_folder:
-                frame_filename = os.path.join(frame_folder, f"frame_{current_frame}.jpg")
+                # Calculate the time in seconds from the start of the video
+                time_in_seconds = current_frame / fps
+                frame_filename = os.path.join(frame_folder, f"frame_{time_in_seconds:.2f}.jpg")
                 cv2.imwrite(frame_filename, frame_resized)
 
         # Release the video capture object

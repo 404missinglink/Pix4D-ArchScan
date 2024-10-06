@@ -10,6 +10,8 @@ from services.pixtral_service import process_with_pixtral
 
 def main_service(youtube_link, video_dir_path, frame_number, dir_path):
 
+    description_output_path = os.path.join(dir_path, "video_description.txt")
+
     frame_folder_path = os.path.join(dir_path, "frames")
     os.makedirs(frame_folder_path, exist_ok=True)
 
@@ -17,7 +19,7 @@ def main_service(youtube_link, video_dir_path, frame_number, dir_path):
     os.makedirs(pixtral_response_path, exist_ok=True)
 
     if not os.path.exists(video_dir_path):
-        download_video(youtube_link, video_dir_path)
+        download_video(youtube_link, video_dir_path, description_output_path)
     else:
         print("Video exists in folder.")
 
@@ -27,7 +29,7 @@ def main_service(youtube_link, video_dir_path, frame_number, dir_path):
             max_frames=frame_number, 
             trim_start=cf.TRIM_START_FRAMES,
             trim_end=cf.TRIM_END_FRAMES, 
-            output_dir=frame_folder_path
+            frame_folder=frame_folder_path
         )
     else:
         print("Frames exist in folder.")

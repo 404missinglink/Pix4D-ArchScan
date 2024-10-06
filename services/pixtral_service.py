@@ -44,7 +44,7 @@ def process_with_pixtral(image_files, frame_folder_path, pixtral_response_path):
             headers={"Content-Type": "application/json"},
             json={
                 "image_url": image_url,
-                "prompt": cf.prompt
+                "prompt": cf.prompt2
             }
         )
 
