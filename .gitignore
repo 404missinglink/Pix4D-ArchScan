@@ -77,5 +77,3 @@ docker-compose.yml
 # Ignore __init__.py (if you want to exclude empty init files)
 __init__.py
 .env
-git check-ignore -v <file>
-
