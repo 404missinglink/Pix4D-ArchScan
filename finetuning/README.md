@@ -6,7 +6,7 @@ Why do we need to fine-tune for our use case (focusing on drone/aerial survey im
 2. Fails where there is dense spatial context in aerial imagery
 3. Fails to understand the quantitative context as the number of features increases
 
-💡Interesting question: Does VQA dataset work better for fine tuning vision language models
+> 💡Interesting question: Does VQA dataset work better for fine tuning vision language models
 
 ## LoRA Finetune and Dataset:
 
