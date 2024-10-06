@@ -1,14 +1,14 @@
+# Finetuning Pixtral
+
 Why do we need to fine-tune for our use case (focusing on drone/aerial survey imagery with mostly top view)? (Where it fails):
 
 1. Fails where there are dense features in aerial imagery
 2. Fails where there is dense spatial context in aerial imagery
 3. Fails to understand the quantitative context as the number of features increases
 
-Finetuning
-
 💡Interesting question: Does VQA dataset work better for fine tuning vision language models
 
-**FINETUNING**:
+## LoRA Finetune and Dataset:
 
 Step 1: **Baselining**
 
